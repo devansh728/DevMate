@@ -1,0 +1,157 @@
+/**
+ * A simplified Geohash utility to demonstrate the core concepts of encoding and finding neighbors.
+ * Note: For production use, it's highly recommended to use a robust, well-tested library.
+ */
+class Geohash {
+    constructor() {
+        this.base32 = '0123456789bcdefghjkmnpqrstuvwxyz';
+        this.bits = [16, 8, 4, 2, 1];
+    }
+
+    /**
+     * Encodes a latitude and longitude into a Geohash string of a given precision.
+     * @param {number} latitude The latitude to encode.
+     * @param {number} longitude The longitude to encode.
+     * @param {number} [precision=9] The desired length of the Geohash string.
+     * @returns {string} The encoded Geohash string.
+     */
+    encode(latitude, longitude, precision = 9) {
+        let latRange = [-90.0, 90.0];
+        let lonRange = [-180.0, 180.0];
+        let hash = '';
+        let isEvenBit = true;
+        let charIndex = 0;
+
+        while (hash.length < precision) {
+            let range = isEvenBit ? lonRange : latRange;
+            let mid = (range[0] + range[1]) / 2;
+
+            let bit = 0;
+            if ((isEvenBit && longitude > mid) || (!isEvenBit && latitude > mid)) {
+                bit = 1;
+                range[0] = mid;
+            } else {
+                range[1] = mid;
+            }
+
+            charIndex = (charIndex << 1) | bit;
+            if (!isEvenBit) {
+                hash += this.base32[charIndex];
+                charIndex = 0;
+            }
+            isEvenBit = !isEvenBit;
+        }
+
+        return hash;
+    }
+
+    /**
+     * Decodes a Geohash string back to a latitude and longitude.
+     * This returns the center point of the geohash bounding box.
+     * @param {string} geohash The Geohash string to decode.
+     * @returns {{latitude: number, longitude: number}} The decoded coordinates.
+     */
+    decode(geohash) {
+        let latRange = [-90.0, 90.0];
+        let lonRange = [-180.0, 180.0];
+        let isEvenBit = true;
+
+        for (let char of geohash) {
+            let charIndex = this.base32.indexOf(char);
+            for (let i = 0; i < 5; i++) {
+                let range = isEvenBit ? lonRange : latRange;
+                let mid = (range[0] + range[1]) / 2;
+                if ((charIndex & this.bits[i]) !== 0) {
+                    range[0] = mid;
+                } else {
+                    range[1] = mid;
+                }
+                isEvenBit = !isEvenBit;
+            }
+        }
+        return {
+            latitude: (latRange[0] + latRange[1]) / 2,
+            longitude: (lonRange[0] + lonRange[1]) / 2
+        };
+    }
+
+    /**
+     * Finds the 8 neighboring Geohash strings for a given Geohash.
+     * This is crucial for proximity searches to handle grid boundary issues.
+     * @param {string} geohash The Geohash string.
+     * @returns {string[]} An array of 8 neighbor Geohash strings.
+     */
+    findNeighbors(geohash) {
+        const neighbors = [
+            'n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'
+        ];
+        const neighborHashes = {};
+
+        // Helper function to find the neighbor in a specific direction.
+        const findNeighbor = (hash, direction) => {
+            let latRange = [-90.0, 90.0];
+            let lonRange = [-180.0, 180.0];
+            let isEvenBit = true;
+
+            for (let char of hash) {
+                let mid = isEvenBit ? (lonRange[0] + lonRange[1]) / 2 : (latRange[0] + latRange[1]) / 2;
+                if (isEvenBit) {
+                    if (this.base32.indexOf(char) % 2 === 0) {
+                        lonRange[1] = mid;
+                    } else {
+                        lonRange[0] = mid;
+                    }
+                } else {
+                    if (this.base32.indexOf(char) % 2 === 0) {
+                        latRange[1] = mid;
+                    } else {
+                        latRange[0] = mid;
+                    }
+                }
+                isEvenBit = !isEvenBit;
+            }
+
+            let lat = (latRange[0] + latRange[1]) / 2;
+            let lon = (lonRange[0] + lonRange[1]) / 2;
+            const size = Math.abs(latRange[0] - latRange[1]);
+
+            // Adjust coordinates based on direction
+            if (direction.includes('n')) lat += size;
+            if (direction.includes('s')) lat -= size;
+            if (direction.includes('e')) lon += size;
+            if (direction.includes('w')) lon -= size;
+
+            return this.encode(lat, lon, geohash.length);
+        };
+
+        for (let direction of neighbors) {
+            neighborHashes[direction] = findNeighbor(geohash, direction);
+        }
+
+        return Object.values(neighborHashes);
+    }
+}
+
+// --- Example Usage ---
+// Let's use San Francisco coordinates as an example.
+const geohashUtil = new Geohash();
+const latitude = 37.7749;
+const longitude = -122.4194;
+const precision = 7;
+
+// 1. Encode the location
+const myGeohash = geohashUtil.encode(latitude, longitude, precision);
+console.log(`Geohash for (${latitude}, ${longitude}) at precision ${precision}: ${myGeohash}`);
+// Expected output will be something like '9q8yy' with this precision
+
+// 2. Find the 8 neighboring Geohashes for proximity search
+const neighborHashes = geohashUtil.findNeighbors(myGeohash);
+console.log('Nearby Geohashes to query:', neighborHashes.join(', '));
+// Your database query would search for users with a Geohash matching any of these values.
+
+// 3. Decode a Geohash back to coordinates
+const decodedCoords = geohashUtil.decode(myGeohash);
+console.log(`Decoded coordinates from ${myGeohash}:`);
+console.log(`Latitude: ${decodedCoords.latitude}`);
+console.log(`Longitude: ${decodedCoords.longitude}`);
+// The decoded coordinates will be the center of the geohash cell, not the exact original point.

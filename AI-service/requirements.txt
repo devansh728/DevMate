@@ -1,0 +1,15 @@
+fastapi==0.115.0
+uvicorn==0.30.6
+SQLAlchemy==2.0.35
+psycopg[binary]==3.2.1
+pgvector==0.3.2
+pgvector-sqlalchemy==0.2.5
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.9
+sentence-transformers==3.0.1
+numpy==1.26.4
+pydantic==2.8.2
+slowapi==0.1.9
+redis==5.0.8
+python-dotenv==1.0.1
